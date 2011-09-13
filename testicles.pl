@@ -23,22 +23,44 @@ my $testDuration = 0;
 options();
 #verify();
 #printGlobals();
-#startSARandSMI(3);
-launchinator();
+
+# Here, for each testRun, repeat it with 4,8,12,16,20,24,28,32,36,40 users.
+# For that to work you have to have matching script files setup.
+# Those files can be found here:
+#---------------------------------------------------------------------------
+@iterations={4,8,12,16,20,24,28,32,36,40};
+
+#foreach(@iteration)
+#{
+#	$users=$_;
+#	startSARandSMI($users);
+#	launchinator($users);
+#	postProcessinator($users);
+#	summarize($users);
+	
+#}
+
+startSARandSMI(20);
+launchinator(20);
+postProcessinator(20);
+summarize(20);
 
 
 # This is the remote test launcher.  For other folks use this function
 # as the launch point for whatever drone, client simulator etc, you're using
 # -------------------------------------------------------------------------
 sub launchinator
-{
-	
+	{
+	$numUsers=$_[0];
 	# create a directory on the remoteClient to put the results in
 	# ------------------------------------------------------------
 	system("ssh root\@$remoteClient mkdir -p ~/testingResults`date +%Y-%m-%d`/$testRunName");
+	
 	# Launch the unit test
+	# This system call blocks the rest of the script, this is why
+	# the monitors must be init'd first
 	# ------------------------------------------------------------
-	system("ssh root\@$remoteClient \"/root/PerfTool/CSI.PerformanceTest.UnitTests /root/PerfTool/test-script.xml 2> /dev/null > ~/testingResults`date +%Y-%m-%d`/$testRunName/$testRunNameResults.txt &\"");
+	system("ssh root\@$remoteClient '/root/PerfTool/CSI.PerformanceTest.UnitTests /root/PerfTool/test-script-$numUsers.xml > ~/testingResults`date +%Y-%m-%d`/$testRunName/$testRunName-UxResults.txt '");
 	
 }
 
@@ -49,44 +71,43 @@ sub launchinator
 #------------------------------------------------------------------------
 sub postProcessinator
 {
-	# Sleep for the test duration + 5 seconds
-	# ----------------------------------------
-	print "\n Sleeping the perl script while the test runs for $testDuration seconds.\n");
-	sleep($testDuration + 5);
-
+	$numUsers = $_[0];
 	# Kill the nvidia SMI
 	# -------------------------------
-	#processKillah("nvidia-smi");
+	processKillah("nvidia-smi");
 	
 	# Get the FPS results file from the remote client and put in directory on test hardware
 	# -------------------------------------------------------------------------------------
-	system ("scp root\@$remoteClient:testingResults`date +%Y-%m-%d`/$testRunName/$testRunNameResults.txt $testResultsPath");
+	system ("scp root\@$remoteClient:testingResults`date +%Y-%m-%d`/$testRunName/$testRunName-UxResults.txt $testResultsPath");
 
 	# post process the SAR
 	# ---------------------
 	
 	# Networking Details
 	# ---------------------
-	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d_%H-%M`.file -- -n DEV | grep eth0 >network_`date +%Y-%m-%d_%H-%M`.csv");
+	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d`.file -- -n DEV | grep eth0 >$testResultsPath/network_numUsers-$numUsers-`date +%Y-%m-%d_%H-%M`.csv");
 
 	# CPU
 	# ----------------------
-	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d_%H-%M`.file -- -P ALL > cpu_`date +%Y-%m-%d_%H-%M`.csv");
+	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d`.file -- -P ALL > $testResultsPath/cpu_numUsers-$numUsers-`date +%Y-%m-%d_%H-%M`.csv");
 	
 	# Memory
 	# ----------------------
-	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d_%H-%M`.file -- -r > memory_`date +%Y-%m-%d_%H-%M`.csv");
+	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d`.file -- -r > $testResultsPath/memory_numUsers-$numUsers-`date +%Y-%m-%d_%H-%M`.csv");
 	
 	# IO
 	# ----------------------
-	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d_%H-%M`.file -- -b > disk_io_`date +%Y-%m-%d_%H-%M`.csv");
+	system("sadf -d -H $testResultsPath/performance_`date +%Y-%m-%d`.file -- -b > $testResultsPath/disk_io_numUsers-$numUsers-`date +%Y-%m-%d_%H-%M`.csv");
 	
 	# post process the SMI
 	# ------------------------
-	system("cat $testResultsPath/nvidia_data_`date +%Y-%m-%d`.txt | grep "Timestamp\|GPU" --exclude "\n" | awk '/Timestamp/{print $6} /GPU/{print $NF}' > GPU_Utility`date +%Y-%m-%d`.txt");
+	system("cat $testResultsPath/nvidia_data_`date +%Y-%m-%d`.txt | grep \"Timestamp\\|GPU\" --exclude \"\n\" | awk \'/Timestamp/{print $6} /GPU/{print $NF}\' > $testResultsPath/GPU_Utility_numUsers-$numUsers-`date +%Y-%m-%d`.txt");
 
 	# Post process the FPS results
 	# -----------------------------
+	system("cat $testResultsPath/$testRunName-UxResults.txt | grep fps > FPS-numUsers-$numUsers-`date +%Y-%m-%d`.txt");
+		
+
 }
 
 # This function will take in a string argument then use that as a filter
@@ -117,7 +138,8 @@ sub processKillah
 #------------------------------------------------------------------------------------
 sub startSARandSMI
 {
-	$testLength = $_[0];
+	$testLength = 14;
+	$numUsers = $_[0];
 	
 	# Minor bit of preparation here. Create a directory in the cwd that uses the testrun name arg
 	# -------------------------------------------------------------------------------------------
@@ -137,14 +159,14 @@ sub startSARandSMI
 	#  10 $testLength  Is the interval in seconds and the number of intervals respectively.
 	#  ">/dev/null 2>&1 &" is added to the end of the command to supress the output and run bg 
 	#---------------------------------------------------------------------------------------
-	system("sar -bdr -n DEV -P ALL -o $testResultsPath/performance_`date +%Y-%m-%d`.file 10 $testLength >/dev/null 2>&1 &");
+	system("sar -bdr -n DEV -P ALL -o $testResultsPath/performance_numUsers-$numUsers-`date +%Y-%m-%d`.file 10 $testLength >/dev/null 2>&1 &");
 	if ( $? == -1 )
 	{
   		print "sar command failed: $!\n";
 	}
 	else
 	{
-  		printf "sar command exited with value %d", $? >> 8;
+  		printf "sar launched! returned value: %d", $? >> 8;
 	}
 
 	# nvidia-smi initialization
@@ -157,14 +179,14 @@ sub startSARandSMI
 	# SMI Command:
 	#  nvidia-smi -l -i 10 -d > nvidia_data_`date +%Y-%m-%d`.txt
 	# ------------------------------------------------------------------------	
-	system("nvidia-smi -l -i 10 -d > $testResultsPath/nvidia_data_`date +%Y-%m-%d`.txt &");
+	system("nvidia-smi -l -i 10 -d > $testResultsPath/nvidia_data_numUsers-$numUsers-`date +%Y-%m-%d`.txt &");
 	if ( $? == -1 )
 	{
   		print "SMI command failed: $!\n";
 	}
 	else
 	{
-  		printf "\nSMI LAUNCHED! %d\n", $? >> 8;
+  		printf "\nSMI Launched! Returned Value:  %d\n", $? >> 8;
 	}
 	
 }
@@ -198,8 +220,7 @@ sub options
 	usage()  if ( @ARGV < 1 or 
     	  ! GetOptions(	'help|?' 	 => \$help,   
 			'testRunName=s'  => \$testRunName,
-			'remoteClient=s' => \$remoteClient,
-			'testDuration=s' => \$testDuration)
+			'remoteClient=s' => \$remoteClient)
 		  or defined $help);
 	#print "help=$help\n";
 	
@@ -225,4 +246,81 @@ sub usage
 }
 
 
+# This is a very custom script for the output generated by sar, nvidia-smi, and our custom tool
+# ---------------------------------------------------------------------------
+sub summarize
+{
+	my @fps;
+	my @CPU;
+	my @NET;
+	my @GPU;
+	my $total=0;
+	$numUsers=$_[0];
+		
+	# Open a summary File
+	# ---------------------------------------------------
+	open(summary,  ">> $testResultsPath/Summary-$numUsers.txt");
+	print summary "FPSavg,CPUavg,GPUavg\n";
+
+	# Process FPS Avg
+	# ---------------------------------------------------
+	$output = `cat $testResultsPath/*UxResults.txt | grep "average fps:"`;
+	@firstSplit = split /\n/, $output;
+	foreach (@firstSplit)
+	{
+        	@temp = split / /, $_;
+        	if (@temp[2] ne "nan")
+        	{	
+                	push(@fps, @temp[2]);
+        	}
+	}
+
+	foreach (@fps)
+	{
+        	$total= $total+ $_;
+	}	
+
+	$average = $total / @fps;
+
+	print summary "$average,";
+
+	# Process CPU Avg
+	# ---------------------------------------------------
+	$average = 0;
+	$total = 0;
+	$output = `cat $testResultsPath/cpu*csv`;
+ 	@firstSplit = split /\n/, $output;
+	foreach (@firstSplit)
+	{
+		@temp = split /;/, $_;
+		push(@CPU, @temp[6]);
+	}	
+	foreach (@CPU)
+	{
+		$total=$total + $_;
+	}
+	$average = $total / @CPU;
+	print summary "$average,";
+
+	# Process GPU Avg
+	# ---------------------------------------------------
+	$average = 0;
+	$total = 0;
+	$output = `cat $testResultsPath/nvidia_data_*.txt | grep -w "GPU" | grep %`;
+ 	@firstSplit = split /\n/, $output;
+	foreach (@firstSplit)
+	{
+		@temp = split /\s+/, $_;
+		push(@GPU, @temp[3]);
+	}	
+	foreach (@GPU)
+	{
+		$total=$total + $_;
+	}
+	$average = $total / @GPU;
+	print summary "$average,";
+	
+	close (summary);
+
+}	
 	
