@@ -64,7 +64,7 @@ sub dcmqrXSL
 	print dcmqrXSLfile "<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"> \n";
 	print dcmqrXSLfile "<xsl:template match=\"/\"> \n";
   	print dcmqrXSLfile "<xsl:for-each select=\"StudyList/Study\"> \n";
-    print dcmqrXSLfile "mkdir \"$workDir/<xsl:value-of select=\"PatientName\"/>\" \n";     
+    print dcmqrXSLfile "mkdir -p \"$workDir/<xsl:value-of select=\"PatientName\"/>\" \n";     
     print dcmqrXSLfile "dcmqr -L $ListenerAETitle:$ListenerDcmPort $PacsAETitle\@$PacsHost:$PacsDcmPort -cmove $ListenerAETitle  -qPatientName=\"<xsl:value-of select=\"PatientName\"/>\" -cstore <xsl:value-of select=\"ModalitiesInStudy\"/> -cstoredest \"$workDir/<xsl:value-of select=\"PatientName\"/>\" \n";     
 	print dcmqrXSLfile "</xsl:for-each> \n";
 	print dcmqrXSLfile "</xsl:template> \n";
