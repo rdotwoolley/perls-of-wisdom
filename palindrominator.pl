@@ -45,3 +45,11 @@ OUTER:	for ($i = 0; $i < $length; $i++)
 		}
 	
 }
+
+sub time
+{
+	# a function that would start a timer
+}
+
+
+
