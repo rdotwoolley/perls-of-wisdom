@@ -24,5 +24,24 @@ sub options
 
 sub palindrome
 {
-	print "Word: $word\n";
+	my $testword 	= $_[0];
+	my $length	= length($testword);
+	
+
+	# Start with the longest word and go down
+	# ---------------------------------------
+OUTER:	for ($i = 0; $i < $length; $i++)
+		{
+			for ($j = $length; $j > 1; $j--)
+			{
+				$subword 	= substr $testword, $i, $j;
+				$revsubword = reverse scalar $subword;
+				if ($subword eq $revsubword)
+				{
+					print "Booyah, we have palindrome: $subword \| $revsubword\n";
+					last OUTER;
+				}
+			}
+		}
+	
 }
